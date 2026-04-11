@@ -134,13 +134,17 @@ Two levels of approval: **artifact-level** and **task-level**.
 - [x] **Event tier system** — Tier 1 (cards), Tier 2 (one-liners), Tier 3 (hidden by default)
 - [x] **FeedCard component** (`FeedCard.tsx`) — rich cards for tasks, approvals, new hires with colored left border, status chips
 - [x] **Status circle indicators** — Task cards use `StatusIcon`-style circles tied to task state (todo=blue, in_review=violet, done=green, etc.)
-- [x] **Agent icons** — `AgentIcon` lucide icons replace circle-letter avatars throughout the feed
+- [x] **Agent icons** — `AgentIcon` lucide icons replace circle-letter avatars throughout the feed, including collapsed groups
 - [x] **Collapsed groups** — Sequential same-task events within 5min collapse into expandable "N updates to SKI-X"
 - [x] **Entrance animations** — New items slide in with fade via CSS keyframes
 - [x] **Active-work spinners** — Loader2 spinner on active heartbeat runs
-- [x] **Time-based fading** — Older items get reduced opacity, "Earlier" separator at 5min boundary
+- [x] **Time-based separators** — "Earlier" separator at 5min boundary (removed opacity fading for cleaner look)
 - [x] **Contextual empty state** — Agent-state-aware messaging (all paused / no agents / active with pulse)
 - [x] **"Show all activity" toggle** — Reveals hidden tier-3 events via filter dropdown
+- [x] **Auto work-product creation** (`issues.ts`) — When agent marks task done/in_review with a runtime service URL, auto-creates a work product and logs activity
+- [x] **Auto completion comments** — Agent task completions auto-generate a status comment with artifact link if available
+- [x] **Work product event tiers** — `work_product_created` in Tier 1, `work_product_updated/deleted` in Tier 2
+- [x] **Entity status in feed** — FeedCard receives entity status map for richer card rendering
 
 ### Not Started
 

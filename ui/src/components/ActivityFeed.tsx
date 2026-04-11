@@ -25,8 +25,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ListFilter, Layers, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
-import { Identity } from "./Identity";
+import { ListFilter, Layers, ChevronDown, ChevronRight, Loader2, User, Settings } from "lucide-react";
+import { AgentIcon } from "./AgentIconPicker";
 import { timeAgo } from "../lib/timeAgo";
 
 /* ------------------------------------------------------------------ */
@@ -45,8 +45,12 @@ const ACTION_TIER: Record<string, EventTier> = {
   "approval.rejected": 1,
   "agent.created": 1,
 
+  "issue.work_product_created": 1,
+
   // Tier 2 — One-liners
   "issue.updated": 2,
+  "issue.work_product_updated": 2,
+  "issue.work_product_deleted": 2,
   "issue.checked_out": 2,
   "issue.comment_added": 2,
   "issue.commented": 2,
@@ -203,14 +207,6 @@ function flushGroup(group: ActivityEvent[], result: FeedItem[]) {
 /* ------------------------------------------------------------------ */
 
 const FIVE_MINUTES = 5 * 60 * 1000;
-const ONE_HOUR = 60 * 60 * 1000;
-
-function recencyClass(createdAt: Date | string): string {
-  const age = Date.now() - new Date(createdAt).getTime();
-  if (age < FIVE_MINUTES) return ""; // full opacity, slightly bolder handled via font
-  if (age < ONE_HOUR) return "";
-  return "opacity-60";
-}
 
 function isRecent(createdAt: Date | string): boolean {
   return Date.now() - new Date(createdAt).getTime() < FIVE_MINUTES;
@@ -267,25 +263,31 @@ function CollapsedFeedGroup({
     : null;
 
   return (
-    <div className={cn("text-sm", recencyClass(group.latestEvent.createdAt))}>
+    <div className="text-xs">
       <button
         type="button"
         onClick={() => setExpanded((e) => !e)}
-        className="flex w-full items-center gap-2 px-4 py-2 text-left hover:bg-accent/50 transition-colors"
+        className="flex w-full items-center gap-2 px-4 py-2 text-left text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
       >
         {expanded
           ? <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
           : <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
         }
         <span className="flex-1 min-w-0 truncate">
-          <Identity name={actorName} size="xs" className="align-baseline" />
-          <span className="text-muted-foreground ml-1">
+          {group.latestEvent.actorType === "agent"
+            ? <AgentIcon icon={actor?.icon ?? null} className="inline-block h-3.5 w-3.5 text-muted-foreground align-text-bottom" />
+            : group.latestEvent.actorType === "user"
+              ? <User className="inline-block h-3.5 w-3.5 text-muted-foreground align-text-bottom" />
+              : <Settings className="inline-block h-3.5 w-3.5 text-muted-foreground align-text-bottom" />
+          }
+          <span className="ml-1 font-medium">{actorName}</span>
+          <span className="ml-1">
             {group.events.length} updates to{" "}
           </span>
           {link ? (
             <Link
               to={link}
-              className="font-medium text-foreground hover:underline"
+              className="font-medium hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
               {entityName ?? group.entityId}
@@ -381,6 +383,12 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
   const entityTitleMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const i of issues ?? []) map.set(`issue:${i.id}`, i.title);
+    return map;
+  }, [issues]);
+
+  const entityStatusMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const i of issues ?? []) map.set(`issue:${i.id}`, i.status);
     return map;
   }, [issues]);
 
@@ -498,19 +506,19 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
     const evt = item as ActivityEvent;
     const tier = getEventTier(evt);
     const animClass = isNewItem(evt.id) ? "feed-item-new" : "";
-    const fadeClass = recencyClass(evt.createdAt);
     const isActiveHeartbeat = activeHeartbeatEntityIds.has(evt.entityId) && evt.action === "heartbeat.invoked";
 
     if (tier === 1) {
       return (
         <div key={evt.id}>
           {separator}
-          <div className={cn(animClass, fadeClass)}>
+          <div className={animClass || undefined}>
             <FeedCard
               event={evt}
               agentMap={agentMap}
               entityNameMap={entityNameMap}
               entityTitleMap={entityTitleMap}
+              entityStatusMap={entityStatusMap}
               isActive={isActiveHeartbeat}
             />
           </div>
@@ -522,7 +530,7 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
     return (
       <div key={evt.id}>
         {separator}
-        <div className={cn(animClass, fadeClass)}>
+        <div className={animClass || undefined}>
           <ActivityRow
             event={evt}
             agentMap={agentMap}

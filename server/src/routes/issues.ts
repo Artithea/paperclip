@@ -1203,9 +1203,75 @@ export function issueRoutes(
       }
     }
 
+    // Auto-create a work product when an agent marks a task done/in_review
+    // and the task has a runtime service with a URL (e.g. a deployed website)
+    const agentCompletedTask = actor.agentId && (
+      (issue.status === "done" && existing.status !== "done") ||
+      (issue.status === "in_review" && existing.status !== "in_review")
+    );
+    let autoWorkProductUrl: string | null = null;
+    if (agentCompletedTask && existing.executionWorkspaceId) {
+      try {
+        const workspace = await executionWorkspacesSvc.getById(existing.executionWorkspaceId);
+        const runtimeService = workspace?.runtimeServices?.find((rs) => rs.url);
+        if (runtimeService?.url) {
+          autoWorkProductUrl = runtimeService.url;
+          // Only create if no work product already exists for this runtime service
+          const existingProducts = await workProductsSvc.listForIssue(issue.id);
+          const alreadyTracked = existingProducts.some(
+            (wp) => wp.runtimeServiceId === runtimeService.id,
+          );
+          if (!alreadyTracked) {
+            const product = await workProductsSvc.createForIssue(issue.id, issue.companyId, {
+              type: "website",
+              provider: "runtime_service",
+              externalId: runtimeService.id,
+              title: runtimeService.serviceName ?? issue.title,
+              url: runtimeService.url,
+              status: issue.status === "in_review" ? "ready_for_review" : "approved",
+              reviewState: issue.status === "in_review" ? "needs_board_review" : "none",
+              isPrimary: true,
+              healthStatus: runtimeService.healthStatus ?? "unknown",
+              runtimeServiceId: runtimeService.id,
+              executionWorkspaceId: workspace!.id,
+              projectId: issue.projectId ?? null,
+            });
+            if (product) {
+              await logActivity(db, {
+                companyId: issue.companyId,
+                actorType: actor.actorType,
+                actorId: actor.actorId,
+                agentId: actor.agentId,
+                runId: actor.runId,
+                action: "issue.work_product_created",
+                entityType: "issue",
+                entityId: issue.id,
+                details: { workProductId: product.id, type: product.type, provider: product.provider },
+              });
+            }
+          }
+        }
+      } catch (err) {
+        logger.warn({ err, issueId: issue.id }, "failed to auto-create work product on task completion");
+      }
+    }
+
     let comment = null;
-    if (commentBody) {
-      comment = await svc.addComment(id, commentBody, {
+    // Auto-generate a completion comment when an agent marks a task done/in_review without one
+    const autoComment = !commentBody && actor.agentId && (
+      (issue.status === "done" && existing.status !== "done")
+        ? (autoWorkProductUrl
+          ? `I've completed my work on this task. You can view the result here: ${autoWorkProductUrl}`
+          : "I've completed my work on this task.")
+        : (issue.status === "in_review" && existing.status !== "in_review")
+          ? (autoWorkProductUrl
+            ? `This task is ready for your review. You can view the artifact here: ${autoWorkProductUrl}`
+            : "This task is ready for your review.")
+          : null
+    );
+    const effectiveCommentBody = commentBody ?? autoComment;
+    if (effectiveCommentBody) {
+      comment = await svc.addComment(id, effectiveCommentBody, {
         agentId: actor.agentId ?? undefined,
         userId: actor.actorType === "user" ? actor.actorId : undefined,
         runId: actor.runId,

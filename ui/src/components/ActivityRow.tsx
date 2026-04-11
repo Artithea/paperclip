@@ -118,31 +118,28 @@ export function ActivityRow({ event, agentMap, entityNameMap, entityTitleMap, cl
 
   const inner = (
     <div className="flex items-center gap-3">
-      {isActive && (
-        <Loader2 className="h-3 w-3 shrink-0 animate-spin text-amber-500" />
-      )}
       <p className="flex-1 min-w-0 truncate">
         <span className="inline-flex items-baseline gap-1">
           {actorIcon}
-          <span className="font-medium text-foreground">{actorName}</span>
+          <span className="font-medium">{actorName}</span>
         </span>
-        <span className="text-muted-foreground ml-1">{verb} </span>
+        <span className="ml-1">{verb} </span>
         {name && <span className="font-medium">{name}</span>}
-        {entityTitle && <span className="text-muted-foreground ml-1">— {entityTitle}</span>}
+        {entityTitle && <span className="ml-1">— {entityTitle}</span>}
       </p>
       <span className="text-xs text-muted-foreground shrink-0 pt-0.5">{timeAgo(event.createdAt)}</span>
     </div>
   );
 
   const classes = cn(
-    "px-4 py-2 text-sm",
-    link && "cursor-pointer hover:bg-accent/50 transition-colors",
+    "px-4 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors",
+    link && "cursor-pointer hover:bg-accent/50",
     className,
   );
 
   if (link) {
     return (
-      <Link to={link} className={cn(classes, "no-underline text-inherit block")}>
+      <Link to={link} className={cn(classes, "no-underline block")}>
         {inner}
       </Link>
     );

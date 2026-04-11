@@ -36,6 +36,8 @@ function actionLabel(action: string, details?: Record<string, unknown> | null): 
       return "approved";
     case "approval.rejected":
       return "requested changes";
+    case "issue.work_product_created":
+      return "delivered a work product";
     case "agent.created":
       return "new agent created";
     default:
@@ -55,6 +57,8 @@ function deriveTaskStatus(action: string, details?: Record<string, unknown> | nu
     case "issue.document_created":
     case "issue.document_updated":
       return "in_progress";
+    case "issue.work_product_created":
+      return "in_review";
     case "approval.created":
       return "in_review";
     case "approval.approved":
@@ -80,7 +84,7 @@ function borderColorForStatus(status: string | null): string {
 function statusChip(action: string, details?: Record<string, unknown> | null) {
   switch (action) {
     case "issue.created":
-      return { label: "New Task", className: "bg-blue-500/10 text-blue-600 dark:text-blue-400" };
+      return null;
     case "issue.updated": {
       const status = (details as Record<string, unknown> | null)?.status;
       if (status === "in_review")
@@ -96,6 +100,8 @@ function statusChip(action: string, details?: Record<string, unknown> | null) {
     case "issue.document_created":
     case "issue.document_updated":
       return { label: "Document", className: "bg-blue-500/10 text-blue-600 dark:text-blue-400" };
+    case "issue.work_product_created":
+      return { label: "Deliverable", className: "bg-green-500/10 text-green-600 dark:text-green-400" };
     case "agent.created":
       return { label: "New Hire", className: "bg-purple-500/10 text-purple-600 dark:text-purple-400" };
     default:
@@ -142,6 +148,7 @@ interface FeedCardProps {
   agentMap: Map<string, Agent>;
   entityNameMap: Map<string, string>;
   entityTitleMap?: Map<string, string>;
+  entityStatusMap?: Map<string, string>;
   isActive?: boolean;
   className?: string;
 }
@@ -151,6 +158,7 @@ export function FeedCard({
   agentMap,
   entityNameMap,
   entityTitleMap,
+  entityStatusMap,
   isActive,
   className,
 }: FeedCardProps) {
@@ -166,7 +174,9 @@ export function FeedCard({
   const docKey = details?.key as string | undefined;
   const summary = details?.summary as string | undefined;
 
-  const taskStatus = deriveTaskStatus(event.action, details);
+  const eventStatus = deriveTaskStatus(event.action, details);
+  const currentStatus = entityStatusMap?.get(`${event.entityType}:${event.entityId}`) ?? null;
+  const taskStatus = currentStatus ?? eventStatus;
   const isAgentEvent = event.action === "agent.created";
   const chip = statusChip(event.action, details);
   const borderColor = isAgentEvent ? "border-l-purple-500/50" : borderColorForStatus(taskStatus);
@@ -203,7 +213,7 @@ export function FeedCard({
   const card = (
     <div
       className={cn(
-        "mx-3 my-2 rounded-lg border border-l-[3px] bg-card p-3 text-sm transition-all",
+        "mx-3 my-2 rounded-lg border border-l-[3px] bg-card p-3 text-xs transition-all",
         borderColor,
         link && "cursor-pointer hover:bg-accent/50 hover:shadow-sm",
         className,
@@ -213,12 +223,12 @@ export function FeedCard({
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <div className="flex items-center gap-1.5 min-w-0">
           <ActorIcon event={event} agentMap={agentMap} />
-          <span className="text-xs font-medium truncate">{actorName}</span>
+          <span className="text-xs font-medium truncate text-muted-foreground">{actorName}</span>
           <span className="text-muted-foreground truncate text-xs">
             {actionLabel(event.action, details)}
           </span>
         </div>
-        <span className="text-[11px] text-muted-foreground shrink-0">
+        <span className="text-xs text-muted-foreground shrink-0">
           {timeAgo(event.createdAt)}
         </span>
       </div>

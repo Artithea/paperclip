@@ -5,11 +5,44 @@ set -e
 PUID=${USER_UID:-1000}
 PGID=${USER_GID:-1000}
 
-# Write Claude Code OAuth credentials if provided via environment
+# Write Claude Code OAuth credentials if provided via environment.
+# Writes both:
+#   - credentials.json  (read by Paperclip adapter for quota tracking)
+#   - ~/.claude.json    (read by claude CLI binary for authentication)
+# Both files must be owned by the node user so claude CLI can read them.
 if [ -n "$CLAUDE_CREDENTIALS_JSON" ]; then
     mkdir -p /paperclip/.claude
+
+    # Write credentials.json for the Paperclip adapter
     printf '%s' "$CLAUDE_CREDENTIALS_JSON" > /paperclip/.claude/credentials.json
-    chmod 600 /paperclip/.claude/credentials.json
+
+    # Merge claudeAiOauth into ~/.claude.json for the claude CLI binary
+    python3 - <<'PYEOF'
+import json, os, sys
+
+creds_str = os.environ.get("CLAUDE_CREDENTIALS_JSON", "{}")
+creds = json.loads(creds_str)
+oauth = creds.get("claudeAiOauth", {})
+if not oauth:
+    sys.exit(0)
+
+claude_json_path = "/paperclip/.claude.json"
+try:
+    with open(claude_json_path) as f:
+        cfg = json.load(f)
+except Exception:
+    cfg = {}
+
+cfg["claudeAiOauth"] = oauth
+
+with open(claude_json_path, "w") as f:
+    json.dump(cfg, f)
+print(f"[entrypoint] Claude OAuth merged into {claude_json_path}")
+PYEOF
+
+    # Fix ownership — files were written by root; claude CLI runs as node
+    chown node:node /paperclip/.claude/credentials.json /paperclip/.claude.json 2>/dev/null || true
+    chmod 600 /paperclip/.claude/credentials.json /paperclip/.claude.json 2>/dev/null || true
 fi
 
 # Adjust the node user's UID/GID if they differ from the runtime request

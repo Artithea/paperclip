@@ -230,7 +230,8 @@ async function askAgent(
         });
 
         // "chunk" events carry output text in .message
-        if (event.eventType === "chunk" && event.message) {
+        // Only collect stdout chunks (not stderr/system noise from claude CLI)
+        if (event.eventType === "chunk" && event.stream === "stdout" && event.message) {
           streamChunks.push(event.message);
         }
 

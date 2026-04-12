@@ -233,6 +233,13 @@ function runInBackground(
   });
 }
 
+function sanitizeAgentMessage(message: string): string {
+  return message
+    .split(/\r?\n/)
+    .filter((line) => !line.trimStart().startsWith("[paperclip]"))
+    .join("\n");
+}
+
 // ─── Agent Session ────────────────────────────────────────────────────────────
 
 async function askAgent(
@@ -280,13 +287,15 @@ async function askAgent(
         // "chunk" events carry output text in .message
         // Only collect stdout chunks (not stderr/system noise from claude CLI)
         if (event.eventType === "chunk" && event.stream === "stdout" && event.message) {
-          streamChunks.push(event.message);
+          const message = sanitizeAgentMessage(event.message);
+          if (message.trim()) streamChunks.push(message);
         }
 
         // "done" event — agent completed
         if (event.eventType === "done") {
           if (event.message && streamChunks.length === 0) {
-            streamChunks.push(event.message);
+            const message = sanitizeAgentMessage(event.message);
+            if (message.trim()) streamChunks.push(message);
           }
           doneResolve();
         }

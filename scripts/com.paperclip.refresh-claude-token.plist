@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  macOS LaunchAgent — refreshes Claude Code OAuth token every 6 hours.
+  macOS LaunchAgent — checks Claude Code OAuth token every 30 minutes.
 
   Install:
     cp scripts/com.paperclip.refresh-claude-token.plist ~/Library/LaunchAgents/
@@ -27,9 +27,10 @@
     <string>/Users/arti/Library/Scripts/paperclip-refresh-claude-token.sh</string>
   </array>
 
-  <!-- Run every 6 hours (21600 seconds) -->
+  <!-- Check every 30 minutes. The script skips Fly sync unless the token changed
+       or the last successful sync is older than PAPERCLIP_TOKEN_SYNC_INTERVAL_MINUTES. -->
   <key>StartInterval</key>
-  <integer>21600</integer>
+  <integer>1800</integer>
 
   <!-- Also run at system startup / agent load -->
   <key>RunAtLoad</key>

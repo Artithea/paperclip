@@ -77,6 +77,31 @@ if [ -n "$CODEX_AUTH_JSON" ]; then
     echo "[entrypoint] Codex auth written to /paperclip/.codex/auth.json"
 fi
 
+# Write Gemini subscription auth if provided via environment.
+# gemini_local uses the Gemini CLI, which reads Google account credentials
+# from ~/.gemini in the runtime user's home directory.
+if [ -n "$GEMINI_OAUTH_JSON" ]; then
+    mkdir -p /paperclip/.gemini
+    printf '%s' "$GEMINI_OAUTH_JSON" > /paperclip/.gemini/oauth_creds.json
+    if [ -n "$GEMINI_GOOGLE_ACCOUNTS_JSON" ]; then
+        printf '%s' "$GEMINI_GOOGLE_ACCOUNTS_JSON" > /paperclip/.gemini/google_accounts.json
+    fi
+    if [ -n "$GEMINI_PROJECTS_JSON" ]; then
+        printf '%s' "$GEMINI_PROJECTS_JSON" > /paperclip/.gemini/projects.json
+    fi
+    if [ -n "$GEMINI_GOOGLE_PROJECT" ]; then
+        export GOOGLE_CLOUD_PROJECT="$GEMINI_GOOGLE_PROJECT"
+        export GOOGLE_CLOUD_PROJECT_ID="$GEMINI_GOOGLE_PROJECT"
+    fi
+    export GOOGLE_GENAI_USE_GCA="${GOOGLE_GENAI_USE_GCA:-true}"
+    chown -R node:node /paperclip/.gemini 2>/dev/null || true
+    chmod 700 /paperclip/.gemini 2>/dev/null || true
+    chmod 600 /paperclip/.gemini/oauth_creds.json 2>/dev/null || true
+    chmod 600 /paperclip/.gemini/google_accounts.json 2>/dev/null || true
+    chmod 600 /paperclip/.gemini/projects.json 2>/dev/null || true
+    echo "[entrypoint] Gemini auth written to /paperclip/.gemini"
+fi
+
 # Adjust the node user's UID/GID if they differ from the runtime request
 # and fix volume ownership only when a remap is needed
 changed=0

@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
 APP="${FLY_APP:-paperclip-holding}"
 KEYCHAIN_SERVICE="Claude Code-credentials"

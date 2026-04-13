@@ -250,6 +250,74 @@ async function getActiveAgent(
     : { agentId: config.ceoAgentId, name: "Holding CEO" };
 }
 
+function normalizeAgentMentionText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[^a-z0-9а-я]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function resolveAddressedAgent(
+  text: string,
+  config: TelegramConfig,
+): ActiveAgent | null {
+  const normalized = normalizeAgentMentionText(text);
+  if (!normalized) return null;
+
+  const assistantMentioned = [
+    "ассистент",
+    "ассистента",
+    "ассистенту",
+    "помощник",
+    "помощника",
+    "помощнику",
+    "секретарь",
+    "личный ассистент",
+    "personal assistant",
+  ].some((phrase) => normalized.includes(phrase));
+
+  if (assistantMentioned) {
+    return { agentId: config.personalAssistantAgentId, name: "Personal Assistant" };
+  }
+
+  const ceoMentioned = [
+    "holding ceo",
+    "holding seo",
+    "холдинг ceo",
+    "холдинг seo",
+    "холдинг сео",
+    "холдингу ceo",
+    "холдингу seo",
+    "холдингу сео",
+    "к ceo",
+    "у ceo",
+    "для ceo",
+    "спроси ceo",
+    "к сео",
+    "у сео",
+    "для сео",
+    "спроси сео",
+    "ceo",
+  ].some((phrase) => normalized.includes(phrase));
+
+  if (ceoMentioned) {
+    return { agentId: config.ceoAgentId, name: "Holding CEO" };
+  }
+
+  return null;
+}
+
+async function resolveTelegramTargetAgent(
+  ctx: PluginContext,
+  chatId: string,
+  config: TelegramConfig,
+  text: string,
+): Promise<ActiveAgent> {
+  return resolveAddressedAgent(text, config) ?? getActiveAgent(ctx, chatId, config);
+}
+
 async function setActiveAgent(
   ctx: PluginContext,
   chatId: string,
@@ -950,7 +1018,7 @@ async function handleText(
     return;
   }
   await sendTyping(ctx, config.botToken, chatId);
-  const agent = await getActiveAgent(ctx, chatId, config);
+  const agent = await resolveTelegramTargetAgent(ctx, chatId, config, text);
   const reply = await askAgent(ctx, agent.agentId, config.companyId, text);
   await sendPlainMsg(ctx, config.botToken, chatId, reply);
 }
@@ -973,7 +1041,7 @@ async function enqueueText(
     return;
   }
 
-  const agent = await getActiveAgent(ctx, chatId, config);
+  const agent = await resolveTelegramTargetAgent(ctx, chatId, config, text);
   await sendMsg(
     ctx,
     config.botToken,
@@ -1010,7 +1078,7 @@ async function handleVoice(
     ctx,
     config.botToken,
     chatId,
-    "✅ Принял голосовое. Сейчас расшифрую и передам активному агенту.",
+    "✅ Принял голосовое. Сейчас расшифрую и передам нужному агенту.",
   );
 
   runInBackground(ctx, "Telegram async voice handling failed", async () => {

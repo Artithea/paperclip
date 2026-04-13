@@ -364,8 +364,8 @@ function isTechnicalTelegramNoise(line: string): boolean {
   if (trimmed.startsWith("{") && trimmed.includes('"type"')) return true;
   // Escaped JSON / tool result dumps
   if (isToolResultDump(trimmed)) return true;
-  // Very long lines are almost always API data, not prose
-  if (trimmed.length > 400) return true;
+  // NOTE: Do NOT filter by line length — agent natural-language responses
+  // can exceed 400 chars. isToolResultDump() already handles large JSON.
 
   return (
     trimmed.startsWith("[paperclip]") ||
@@ -377,8 +377,8 @@ function isTechnicalTelegramNoise(line: string): boolean {
     trimmed.includes("ProjectIdRequiredError") ||
     trimmed.includes("GaxiosError") ||
     trimmed.includes("Traceback ") ||
-    trimmed.includes(" at async ") ||
-    trimmed.includes(" at ")
+    trimmed.includes(" at async ")
+    // NOTE: removed " at " — it falsely matched Russian/English prose sentences
   );
 }
 
@@ -624,12 +624,14 @@ async function askAgent(
   // Now safe to close (done event already received or timed out)
   await ctx.agents.sessions.close(session.sessionId, companyId).catch(() => {});
 
+  const response = streamChunks.join("");
   ctx.logger.info("Agent response collected", {
     eventCount,
     streamChunks: streamChunks.length,
+    responseChars: response.length,
+    preview: response.slice(0, 120),
   });
 
-  const response = streamChunks.join("");
   return normalizeTelegramReply(response);
 }
 

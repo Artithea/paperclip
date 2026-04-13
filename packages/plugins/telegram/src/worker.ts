@@ -233,6 +233,94 @@ function runInBackground(
   });
 }
 
+// ─── Claude CLI JSON stream filtering ────────────────────────────────────────
+//
+// Claude CLI outputs structured JSON events to stdout (one per line):
+//   {"type":"system","subtype":"init",...}
+//   {"type":"content_block_delta","delta":{"type":"text_delta","text":"..."},...}
+//   {"type":"tool_use",...}
+// etc.
+//
+// We extract only human-readable text and discard all technical events.
+
+// JSON event types that carry no user-visible text
+const JSON_NOISE_TYPES = new Set([
+  "system", "tool_use", "tool_result", "tool_result_error",
+  "message_start", "message_delta", "message_stop",
+  "content_block_start", "content_block_stop",
+  "ping", "error",
+]);
+
+function extractHumanText(chunk: string): string {
+  const trimmed = chunk.trim();
+  if (!trimmed) return "";
+
+  // Fast path: single-line JSON event
+  if (trimmed.startsWith("{")) {
+    try {
+      const event = JSON.parse(trimmed) as Record<string, unknown>;
+      return extractFromJsonEvent(event);
+    } catch {
+      // Not single-line JSON — fall through to line-by-line processing
+    }
+  }
+
+  // Line-by-line: each line may be a JSON event or plain text
+  const lines = chunk.split(/\r?\n/);
+  const parts: string[] = [];
+
+  for (const line of lines) {
+    const lt = line.trim();
+    if (!lt) { parts.push(""); continue; }
+
+    if (lt.startsWith("{")) {
+      try {
+        const event = JSON.parse(lt) as Record<string, unknown>;
+        const text = extractFromJsonEvent(event);
+        if (text) parts.push(text);
+        continue;
+      } catch {
+        // Not JSON — treat as plain text
+      }
+    }
+
+    if (!isTechnicalTelegramNoise(line)) parts.push(line);
+  }
+
+  return parts.join("\n");
+}
+
+function extractFromJsonEvent(event: Record<string, unknown>): string {
+  const type = event.type as string | undefined;
+  if (!type) return "";
+
+  // Discard known noise types
+  if (JSON_NOISE_TYPES.has(type)) return "";
+
+  // Extract text from streaming delta events
+  if (type === "content_block_delta") {
+    const delta = event.delta as Record<string, unknown> | undefined;
+    if (delta?.type === "text_delta" && typeof delta.text === "string") {
+      return delta.text;
+    }
+    return "";
+  }
+
+  // Extract text from assistant message events
+  if (type === "message") {
+    const content = event.content;
+    if (Array.isArray(content)) {
+      return content
+        .filter((b: unknown) => (b as Record<string, unknown>)?.type === "text")
+        .map((b: unknown) => (b as Record<string, unknown>).text as string)
+        .join("");
+    }
+  }
+
+  // Unknown JSON type — discard (better safe than spammy)
+  return "";
+}
+
 function sanitizeAgentMessage(message: string): string {
   return message
     .split(/\r?\n/)
@@ -243,6 +331,9 @@ function sanitizeAgentMessage(message: string): string {
 function isTechnicalTelegramNoise(line: string): boolean {
   const trimmed = line.trim();
   if (!trimmed) return false;
+
+  // JSON event lines from Claude CLI — always noise
+  if (trimmed.startsWith("{") && trimmed.includes('"type"')) return true;
 
   return (
     trimmed.startsWith("[paperclip]") ||
@@ -332,9 +423,10 @@ async function askAgent(
         });
 
         // "chunk" events carry output text in .message
-        // Only collect stdout chunks (not stderr/system noise from claude CLI)
+        // extractHumanText strips Claude CLI JSON events and keeps only
+        // human-readable assistant text (content_block_delta / plain text).
         if (event.eventType === "chunk" && event.stream === "stdout" && event.message) {
-          const message = sanitizeAgentMessage(event.message);
+          const message = extractHumanText(event.message);
           if (message.trim()) streamChunks.push(message);
         }
 

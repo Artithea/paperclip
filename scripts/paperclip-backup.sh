@@ -9,10 +9,17 @@
 set -euo pipefail
 
 BACKUP_DIR="/tmp/paperclip-backups"
+LOCK_DIR="/tmp/paperclip-backup.lock"
 DATE=$(date +%Y%m%d_%H%M%S)
 ARCHIVE="$BACKUP_DIR/paperclip_backup_$DATE.tar.gz"
 
 mkdir -p "$BACKUP_DIR"
+
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  echo "[backup] Another backup is already running; skipping."
+  exit 0
+fi
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 
 # ── Fresh DB dump before archiving ───────────────────────────────────────────
 # Paperclip stores hourly DB dumps in /paperclip/instances/default/data/backups
@@ -29,7 +36,7 @@ fi
 
 # ── Create archive ────────────────────────────────────────────────────────────
 echo "[backup] Creating archive of /paperclip/instances (includes DB dumps)..."
-tar -czf "$ARCHIVE" -C /paperclip instances/ 2>/dev/null
+tar -I 'gzip -1' -cf "$ARCHIVE" -C /paperclip instances/ 2>/dev/null
 
 SIZE=$(du -sh "$ARCHIVE" 2>/dev/null | cut -f1)
 AGENTS_COUNT=$(find /paperclip/instances/default/agents -name "AGENTS.md" 2>/dev/null | wc -l | tr -d ' ')

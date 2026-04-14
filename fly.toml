@@ -30,7 +30,7 @@ kill_timeout = '2m0s'
     timeout = '5s'
     grace_period = '30s'
     method = 'GET'
-    path = '/api/health'
+    path = '/api/health/live'
 
 [[mounts]]
   source = 'paperclip_instances'

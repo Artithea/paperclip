@@ -818,15 +818,11 @@ function normalizeTelegramReply(response: string): string {
     .join("\n")
     .replace(/\n{3,}/g, "\n\n"));
 
-  if (!cleaned) {
-    return "Агент выполнил задачу, но не вернул текстовый ответ. Проверьте задачи в Paperclip или попробуйте ещё раз.";
-  }
-
   return cleaned;
 }
 
 function chooseTelegramReply(streamResponse: string, terminalResultText: string): string {
-  const streamReply = normalizeTelegramReply(streamResponse);
+  const streamReply = streamResponse.trim() ? normalizeTelegramReply(streamResponse) : "";
   const terminalReply = terminalResultText.trim() ? normalizeTelegramReply(terminalResultText) : "";
 
   if (!terminalReply) return streamReply;
@@ -952,7 +948,8 @@ async function askAgent(
   await ctx.agents.sessions.close(session.sessionId, companyId).catch(() => {});
 
   const streamResponse = streamChunks.join("");
-  const response = chooseTelegramReply(streamResponse, terminalResultText);
+  const response = chooseTelegramReply(streamResponse, terminalResultText) ||
+    "Агент выполнил задачу, но не вернул текстовый ответ. Проверьте задачи в Paperclip или попробуйте ещё раз.";
   ctx.logger.info("Agent response collected", {
     eventCount,
     streamChunks: streamChunks.length,
